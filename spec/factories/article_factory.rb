@@ -1,7 +1,7 @@
 FactoryGirl.define do
   factory :article do
     author factory: :user
-    title { Faker::Lorem.sentence }
+    title { Faker::Lorem.sentence(3, false, 3) }
     slug { title.parameterize }
     content { Faker::Hacker.say_something_smart }
 
@@ -19,8 +19,8 @@ FactoryGirl.define do
       archived_at 1.day.ago
     end
 
-    trait :rotten do
-      rotted_at Time.now
+    trait :outdated do
+      outdated_at Time.now
     end
 
     trait :guide do

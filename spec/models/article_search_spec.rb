@@ -35,24 +35,19 @@ RSpec.describe Article do
       expect(result.first).to eq(@article1)
     end
 
-    it "doesn't match with with improper boolean AND operators" do
+    it "does match with improper boolean AND operators" do
       result = Article.text_search "tough & pumpernickel"
-      expect(result.first).to_not eq(@article1)
+      expect(result.first).to eq(@article1)
     end
 
-    it "does match with with improper boolean AND operators" do
-      result = Article.text_search "tough & pumpernickel"
-      expect(result.first).to_not eq(@article1)
-    end
-
-    it "doesn't do partial content matching" do
+    it "does partial content matching" do
       result = Article.text_search "yum"
-      expect(result).to_not include(@article1)
+      expect(result).to include(@article1)
     end
 
-    it "doesn't do full content matching" do
+    it "does full content matching" do
       result = Article.text_search @article1.content
-      expect(result).to_not include(@article1)
+      expect(result).to include(@article1)
     end
 
     context "when searching for tagged articles" do
@@ -86,6 +81,20 @@ RSpec.describe Article do
       it "finds the articles" do
         expect(Article.text_search("Account Locking")).to include(@recaptcha)
         expect(Article.text_search("email securing")).to include(@securing)
+      end
+    end
+
+    context "when matching on the same string in title and content" do
+      before do
+        @title_match = create(:article, title: "Security Best Practices")
+        @content_match = create(:article, content: "We have a number of security best practices, some of which don't make a lot of sense.")
+      end
+
+      subject(:search) { Article.text_search("security best practices") }
+
+      it "prioritizes the article title" do
+        expect(search.first).to eq(@title_match)
+        expect(search.last).to eq(@content_match)
       end
     end
   end

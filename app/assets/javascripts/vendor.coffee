@@ -10,8 +10,7 @@
 # -------------------------------------
 
 #= require jquery
-#= require jquery-tokeninput
-#= require jquery-ujs
+#= require jquery-tokeninput/dist/js/jquery-tokeninput.min
 
 # -------------------------------------
 #   Bootstrap
@@ -23,4 +22,4 @@
 #   Moment.js
 # -------------------------------------
 
-#= require momentjs
+#= require moment/min/moment.min

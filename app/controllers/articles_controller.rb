@@ -1,28 +1,30 @@
 class ArticlesController < ApplicationController
-  before_filter :find_article_by_params, only: [
+  before_action :find_article_by_params, only: [
     :show,
     :edit,
     :update,
     :destroy
   ]
-  before_filter :decorate_article, only: [
+  before_action :decorate_article, only: [
     :show,
     :edit,
     :toggle_archived,
     :toggle_subscription,
     :toggle_endorsement,
-    :report_rot,
+    :report_outdated,
     :mark_fresh
   ]
   respond_to :html, :json
 
   def index
     @articles = fetch_articles
+
+    render :index, layout: false if request.xhr?
   end
 
   def show
     respond_with_article_or_redirect_or_new
-    @article.count_visit if @article.present?
+    record_article_metrics
   end
 
   def new
@@ -32,11 +34,12 @@ class ArticlesController < ApplicationController
   def create
     @article = Article.new(article_params)
     if @article.save
-      @article.subscribe_author
-      respond_with_article_or_redirect
+      @article.subscribe(@article.author)
+      flash[:notice] = "Article was successfully created."
     else
-      render :new
+      flash[:error] = error_message(@article)
     end
+    respond_with @article
   end
 
   def edit
@@ -44,31 +47,31 @@ class ArticlesController < ApplicationController
   end
 
   def fresh
-    @articles = fetch_articles(Article.current.fresh)
+    @articles = fetch_articles(:fresh)
     @page_title = "Fresh Articles"
     render :index
   end
 
   def stale
-    @articles = fetch_articles(Article.current.stale)
+    @articles = fetch_articles(:stale)
     @page_title = "Stale Articles"
     render :index
   end
 
-  def rotten
-    @articles = fetch_articles(Article.current.rotten)
-    @page_title = "Rotten Articles"
+  def outdated
+    @articles = fetch_articles(:outdated)
+    @page_title = "Outdated Articles"
     render :index
   end
 
   def archived
-    @articles = fetch_articles(Article.archived)
+    @articles = fetch_articles(:archived)
     @page_title = "Archived Articles"
     render :index
   end
 
   def popular
-    @articles = fetch_articles(Article.current.popular)
+    @articles = fetch_articles(:popular)
     @page_title = "Popular Articles"
     render :index
   end
@@ -86,14 +89,19 @@ class ArticlesController < ApplicationController
     end
   end
 
-  def report_rot
-    @article.rot!(current_user.id)
-    flash[:notice] = "Successfully reported this article as rotten."
+  def report_outdated
+    @article.outdated!(current_user.id)
+    flash[:notice] = "Successfully reported this article as outdated."
     respond_with_article_or_redirect
   end
 
   def update
-    respond_with_article_or_redirect if @article.update_attributes(article_params)
+    if @article.update_attributes(article_params)
+      flash[:notice] = "Article was successfully updated."
+    else
+      flash[:error] = error_message(@article)
+    end
+    respond_with @article
   end
 
   def destroy
@@ -130,6 +138,14 @@ class ArticlesController < ApplicationController
 
   private
 
+  def error_message(article)
+    if article.errors.messages.key?(:friendly_id)
+      "#{article.title} is a reserved word."
+    else
+      "Article could not be #{params[:action]}d."
+    end
+  end
+
   def article_params
     params.require(:article).permit(
       :created_at, :updated_at, :title, :content, :tag_tokens,
@@ -141,9 +157,9 @@ class ArticlesController < ApplicationController
   end
 
   def fetch_articles(scope = nil)
-    scope ||= Article.current
-    query = Article.includes(:tags).text_search(params[:search], scope)
-    ArticleDecorator.decorate_collection(query)
+    articles = Article.includes(:tags).public_send(scope || :current)
+    results = Article.text_search(params[:search], articles)
+    ArticleDecorator.decorate_collection(results)
   end
 
   def find_article_by_params
@@ -173,6 +189,13 @@ class ArticlesController < ApplicationController
       return redirect_to @article, status: :moved_permanently
     else
       return respond_with @article
+    end
+  end
+
+  def record_article_metrics
+    if @article.present?
+      @article.count_visit
+      @article.view(user: current_user)
     end
   end
 end
